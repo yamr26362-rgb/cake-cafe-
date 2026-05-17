@@ -62,7 +62,7 @@
 
 <script>
     const firebaseConfig = {
-        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8", 
+        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8",
         authDomain: "scan-order-system.firebaseapp.com",
         projectId: "scan-order-system",
         storageBucket: "scan-order-system.firebasestorage.app",
@@ -75,7 +75,7 @@
     const database = firebase.database();
     const auth = firebase.auth();
     
-    let activeBranch = ""; // متغير خاص بكل جهاز فاتح حالياً فقط
+    let activeBranch = ""; 
 
     function loginAdmin() {
         const email = document.getElementById('adminEmail').value;
@@ -84,7 +84,6 @@
     }
 
     function logoutAdmin() { 
-        // مسح الاستماع تماماً قبل قفل الصفحة لتأمين البيانات
         if (activeBranch) {
             database.ref('branches/' + activeBranch + '/orders').off();
         }
@@ -93,10 +92,8 @@
         });
     }
 
-    // الـ Listener ده شغال على مستوى المتصفح الفاتح حالياً بس ومستحيل يتأثر بجهاز تاني
     auth.onAuthStateChanged(user => {
         if (user) {
-            // استخراج اسم الفرع من إيميل الجهاز ده فقط
             activeBranch = user.email.split('@')[0]; 
 
             document.getElementById('loginBox').style.display = "none";
@@ -112,7 +109,6 @@
 
     let isFirstLoad = true;
     function startListeningToOrders(branchName) {
-        // الاستماع لغرفة الفرع ده بسسس جوه الفايربيز
         database.ref('branches/' + branchName + '/orders').on('value', (snapshot) => {
             const ordersGrid = document.getElementById('ordersGrid');
             ordersGrid.innerHTML = "";
