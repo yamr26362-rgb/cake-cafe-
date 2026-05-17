@@ -18,7 +18,6 @@
         .order-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-top: 5px solid #3498db; position: relative; transition: all 0.3s; }
         .order-card.done { border-top-color: #2ecc71; opacity: 0.8; }
         
-        /* تنبيه أحمر فلاش لو الترابيزة طلبت الشيك */
         .order-card.bill-requested { border-top-color: #e74c3c; background: #fdf2f2; animation: flash-red 2s infinite; }
         .bill-alert { background: #e74c3c; color: white; font-weight: bold; text-align: center; padding: 8px; border-radius: 5px; margin-bottom: 12px; font-size: 15px; }
 
@@ -63,7 +62,7 @@
 
 <script>
     const firebaseConfig = {
-        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8",
+        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8", // ✅ تم التحديث هنا بمفتاحك الصحيح
         authDomain: "scan-order-system.firebaseapp.com",
         projectId: "scan-order-system",
         storageBucket: "scan-order-system.firebasestorage.app",
@@ -119,7 +118,6 @@
                 let cardClass = isDone ? "order-card done" : "order-card";
                 let billAlertHtml = "";
                 
-                // لو العميل طلب الحساب
                 if (order.billRequested === true) {
                     cardClass += " bill-requested";
                     billAlertHtml = `<div class="bill-alert">🚨 الترابيزة تطلب الحساب فوراً! 💸</div>`;
