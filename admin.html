@@ -18,7 +18,6 @@
         .order-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-top: 5px solid #3498db; position: relative; transition: all 0.3s; }
         .order-card.done { border-top-color: #2ecc71; opacity: 0.8; }
         
-        /* تنبيه أحمر فلاش لو الترابيزة طلبت الشيك */
         .order-card.bill-requested { border-top-color: #e74c3c; background: #fdf2f2; animation: flash-red 2s infinite; }
         .bill-alert { background: #e74c3c; color: white; font-weight: bold; text-align: center; padding: 8px; border-radius: 5px; margin-bottom: 12px; font-size: 15px; }
 
@@ -42,14 +41,14 @@
 
 <div class="login-container" id="loginBox">
     <h2>تسجيل دخول الأدمن 🔒</h2>
-    <input type="email" id="adminEmail" placeholder="البريد الإلكتروني">
+    <input type="email" id="adminEmail" placeholder="البريد الإلكتروني للفرع">
     <input type="password" id="adminPassword" placeholder="كلمة المرور">
     <button onclick="loginAdmin()">دخول</button>
 </div>
 
 <div class="admin-panel" id="adminPanel">
     <header>
-        <h1>📥 لوحة تحكم الطلبات لايف</h1>
+        <h1>📥 طلبات لايف - فرع: <span id="currentBranchTitle" style="color:#e67e22; text-transform: uppercase;">...</span></h1>
         <button class="logout-btn" onclick="logoutAdmin()">تسجيل الخروج</button>
     </header>
     <div class="orders-grid" id="ordersGrid"></div>
@@ -75,6 +74,8 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const auth = firebase.auth();
+    
+    let activeBranch = ""; // متغير خاص بكل جهاز فاتح حالياً فقط
 
     function loginAdmin() {
         const email = document.getElementById('adminEmail').value;
@@ -82,13 +83,27 @@
         auth.signInWithEmailAndPassword(email, password).catch(error => { alert("خطأ في الدخول: " + error.message); });
     }
 
-    function logoutAdmin() { auth.signOut(); }
+    function logoutAdmin() { 
+        // مسح الاستماع تماماً قبل قفل الصفحة لتأمين البيانات
+        if (activeBranch) {
+            database.ref('branches/' + activeBranch + '/orders').off();
+        }
+        auth.signOut().then(() => {
+            window.location.reload();
+        });
+    }
 
+    // الـ Listener ده شغال على مستوى المتصفح الفاتح حالياً بس ومستحيل يتأثر بجهاز تاني
     auth.onAuthStateChanged(user => {
         if (user) {
+            // استخراج اسم الفرع من إيميل الجهاز ده فقط
+            activeBranch = user.email.split('@')[0]; 
+
             document.getElementById('loginBox').style.display = "none";
             document.getElementById('adminPanel').style.display = "block";
-            startListeningToOrders();
+            document.getElementById('currentBranchTitle').innerText = activeBranch;
+            
+            startListeningToOrders(activeBranch);
         } else {
             document.getElementById('loginBox').style.display = "block";
             document.getElementById('adminPanel').style.display = "none";
@@ -96,13 +111,14 @@
     });
 
     let isFirstLoad = true;
-    function startListeningToOrders() {
-        database.ref('orders').on('value', (snapshot) => {
+    function startListeningToOrders(branchName) {
+        // الاستماع لغرفة الفرع ده بسسس جوه الفايربيز
+        database.ref('branches/' + branchName + '/orders').on('value', (snapshot) => {
             const ordersGrid = document.getElementById('ordersGrid');
             ordersGrid.innerHTML = "";
             const data = snapshot.val();
             if (!data) {
-                ordersGrid.innerHTML = "<p style='text-align:center; width:100%; color:#7f8c8d;'>لا توجد طلبات حالياً.</p>";
+                ordersGrid.innerHTML = `<p style='text-align:center; width:100%; color:#7f8c8d;'>لا توجد طلبات حالياً لفرع ${branchName}.</p>`;
                 return;
             }
 
@@ -119,7 +135,6 @@
                 let cardClass = isDone ? "order-card done" : "order-card";
                 let billAlertHtml = "";
                 
-                // لو العميل طلب الحساب
                 if (order.billRequested === true) {
                     cardClass += " bill-requested";
                     billAlertHtml = `<div class="bill-alert">🚨 الترابيزة تطلب الحساب فوراً! 💸</div>`;
@@ -155,12 +170,12 @@
     }
 
     function completeOrder(orderId) { 
-        database.ref('orders/' + orderId).update({ status: "تم التجهيز" }); 
+        database.ref('branches/' + activeBranch + '/orders/' + orderId).update({ status: "تم التجهيز" }); 
     }
 
     function deleteOrder(orderId) {
         if (confirm("هل تم تحصيل الحساب وتريد إخلاء الترابيزة ومسح الأوردر؟")) {
-            database.ref('orders/' + orderId).remove().catch(error => { alert("حدث خطأ: " + error.message); });
+            database.ref('branches/' + activeBranch + '/orders/' + orderId).remove().catch(error => { alert("حدث خطأ: " + error.message); });
         }
     }
 </script>
