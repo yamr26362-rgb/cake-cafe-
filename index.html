@@ -21,7 +21,6 @@
         .qty-val { font-weight: bold; width: 20px; text-align: center; font-size: 16px; }
         .order-btn { width: 100%; background: #2ecc71; color: white; border: none; padding: 14px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; }
         
-        /* جزء القائمة اللى بيختفي لو في أوردر قائم */
         #menuSection { display: block; }
 
         .success-card { display: none; text-align: center; margin-top: 20px; padding: 20px; border-radius: 10px; border: 1px solid #ccc; background: #fdfefe; }
@@ -31,8 +30,6 @@
         .status-ready { background: #2ecc71; color: #fff; animation: pulse 1.5s infinite; }
         
         .request-bill-btn { width: 100%; background: #e74c3c; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; display: none; }
-        
-        /* زرار لطلب جديد بعد انتهاء الحساب */
         .new-order-btn { width: 100%; background: #3498db; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; display: none; }
 
         @keyframes pulse {
@@ -102,7 +99,7 @@
 
 <script>
     const firebaseConfig = {
-        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8", 
+        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8",
         authDomain: "scan-order-system.firebaseapp.com",
         projectId: "scan-order-system",
         storageBucket: "scan-order-system.firebasestorage.app",
@@ -115,13 +112,21 @@
     const database = firebase.database();
 
     const urlParams = new URLSearchParams(window.location.search);
-    let tableNumber = urlParams.get('table') || "غير محدد";
+    let tableNumber = urlParams.get('table');
+    
+    // 🌟 تكة طلب رقم الترابيزة لو مش موجود في الرابط
+    if (!tableNumber || tableNumber.trim() === "") {
+        tableNumber = prompt("مرحباً بك في الكافيه! فضلاً أدخل رقم ترابيزتك لتتمكن من الطلب:");
+        if (!tableNumber || tableNumber.trim() === "") {
+            tableNumber = "غير محدد";
+        }
+    }
+    
     document.getElementById('tableDisplay').innerText = "📌 ترابيزة رقم: " + tableNumber;
 
     const cart = { p1: 0, p2: 0 };
     let currentOrderNumber = null;
 
-    // 🌟 تشييك تلقائي أول ما الصفحة تفتح: هل العميل ده عنده أوردر محفوظ في الموبايل؟
     window.onload = function() {
         const savedOrder = localStorage.getItem('activeOrderId');
         if (savedOrder) {
@@ -137,6 +142,17 @@
     }
 
     function submitOrder() {
+        // حماية إضافية: لو لسه مسجلها غير محدد يطلبها تاني قبل الإرسال
+        if (tableNumber === "غير محدد") {
+            tableNumber = prompt("من فضلك أدخل رقم الترابيزة أولاً لإرسال الطلب للبار:");
+            if (!tableNumber || tableNumber.trim() === "") {
+                tableNumber = "غير محدد";
+                alert("لا يمكن إرسال الطلب بدون تحديد رقم الترابيزة!");
+                return;
+            }
+            document.getElementById('tableDisplay').innerText = "📌 ترابيزة رقم: " + tableNumber;
+        }
+
         const orderItems = [];
         let total = 0;
         document.querySelectorAll('.product-card').forEach(card => {
@@ -151,13 +167,11 @@
         });
 
         if (orderItems.length === 0) {
-            alert("عذراً، يجب اختيار منتج واحد على الأقل!");
+            alert("عذراً، يجب اختيار منتج واحد على الأخل!");
             return;
         }
 
         currentOrderNumber = Math.floor(1000 + Math.random() * 9000);
-        
-        // 🌟 حفظ رقم الأوردر في ذاكرة الموبايل فوراً
         localStorage.setItem('activeOrderId', currentOrderNumber);
 
         const orderData = {
@@ -178,7 +192,6 @@
         .catch(error => { alert("حدث خطأ، حاول مرة أخرى."); });
     }
 
-    // دالة لتهيئة الشاشة وعرض التتبع وإخفاء المنيو
     function showTrackingScreen(orderNum) {
         document.getElementById('displayOrderNum').innerText = "#" + orderNum;
         document.getElementById('successCard').style.display = "block";
@@ -201,15 +214,13 @@
     function trackOrderStatusLive(orderNum) {
         database.ref('orders/' + orderNum).on('value', (snapshot) => {
             const orderData = snapshot.val();
-            
-            // 🌟 لو أنت كأدمن دوست "حساب" ومسحت الأوردر من عندك
             if (!orderData) {
                 document.getElementById('orderStatusBadge').innerText = "تم إنهاء الحساب بنجاح 👋✨";
                 document.getElementById('orderStatusBadge').className = "status-badge";
                 document.getElementById('orderStatusBadge').style.background = "#95a5a6";
                 document.getElementById('billBtn').style.display = "none";
-                document.getElementById('newOrderBtn').style.display = "block"; // إظهار زرار فتح منيو جديد
-                localStorage.removeItem('activeOrderId'); // مسح الأوردر من الذاكرة عشان الترابيزة فضيت
+                document.getElementById('newOrderBtn').style.display = "block";
+                localStorage.removeItem('activeOrderId');
                 return;
             }
 
@@ -224,7 +235,6 @@
         });
     }
 
-    // دالة تصفير المنيو لو حب يعمل طلب جديد بعد دفع الحساب القديم
     function resetForNewOrder() {
         localStorage.removeItem('activeOrderId');
         currentOrderNumber = null;
