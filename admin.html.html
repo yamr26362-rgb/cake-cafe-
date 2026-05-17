@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - الأدمن الاحترافي</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f1f2f6; margin: 0; padding: 20px; color: #2c3e50; }
+        .login-container { max-width: 400px; margin: 100px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+        .login-container h2 { margin-bottom: 20px; color: #2c3e50; }
+        .login-container input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; text-align: right; font-size: 16px; }
+        .login-container button { width: 100%; background: #3498db; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        .admin-panel { display: none; }
+        header { background: #2c3e50; color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .logout-btn { background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
+        .orders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .order-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-top: 5px solid #3498db; position: relative; }
+        .order-card.done { border-top-color: #2ecc71; opacity: 0.8; }
+        .order-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #f0f3f4; padding-bottom: 10px; margin-bottom: 10px; }
+        .order-id { font-size: 18px; font-weight: bold; color: #2980b9; }
+        .table-number-tag { background: #e67e22; color: white; padding: 4px 10px; border-radius: 5px; font-weight: bold; font-size: 14px; }
+        .order-footer { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; border-top: 1px solid #f0f3f4; padding-top: 10px; }
+        .footer-row { display: flex; justify-content: space-between; align-items: center; }
+        .action-btns { display: flex; gap: 8px; width: 100%; margin-top: 5px; }
+        .status-btn { flex: 2; background: #2ecc71; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .delete-btn { flex: 1; background: #e74c3c; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="login-container" id="loginBox">
+    <h2>تسجيل دخول الأدمن 🔒</h2>
+    <input type="email" id="adminEmail" placeholder="البريد الإلكتروني">
+    <input type="password" id="adminPassword" placeholder="كلمة المرور">
+    <button onclick="loginAdmin()">دخول</button>
+</div>
+
+<div class="admin-panel" id="adminPanel">
+    <header>
+        <h1>📥 لوحة تحكم الطلبات لايف</h1>
+        <button class="logout-btn" onclick="logoutAdmin()">تسجيل الخروج</button>
+    </header>
+    <div class="orders-grid" id="ordersGrid"></div>
+</div>
+
+<audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-600.wav" preload="auto"></audio>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDBuBOcY9mbCXZIVIhkTjOhaor4VsrTPx8",
+        authDomain: "scan-order-system.firebaseapp.com",
+        projectId: "scan-order-system",
+        storageBucket: "scan-order-system.firebasestorage.app",
+        messagingSenderId: "1066014113516",
+        appId: "1:1066014113516:web:61ef0f2dc366b0e9d8afc9",
+        databaseURL: "https://scan-order-system-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
+
+    function loginAdmin() {
+        const email = document.getElementById('adminEmail').value;
+        const password = document.getElementById('adminPassword').value;
+        auth.signInWithEmailAndPassword(email, password).catch(error => { alert("خطأ في الدخول: " + error.message); });
+    }
+
+    function logoutAdmin() { auth.signOut(); }
+
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('loginBox').style.display = "none";
+            document.getElementById('adminPanel').style.display = "block";
+            startListeningToOrders();
+        } else {
+            document.getElementById('loginBox').style.display = "block";
+            document.getElementById('adminPanel').style.display = "none";
+        }
+    });
+
+    let isFirstLoad = true;
+    function startListeningToOrders() {
+        database.ref('orders').on('value', (snapshot) => {
+            const ordersGrid = document.getElementById('ordersGrid');
+            ordersGrid.innerHTML = "";
+            const data = snapshot.val();
+            if (!data) {
+                ordersGrid.innerHTML = "<p style='text-align:center; width:100%; color:#7f8c8d;'>لا توجد طلبات حالياً.</p>";
+                return;
+            }
+
+            if (!isFirstLoad) { document.getElementById('notifSound').play().catch(e => {}); }
+            isFirstLoad = false;
+
+            Object.keys(data).reverse().forEach(key => {
+                const order = data[key];
+                let itemsHtml = "";
+                order.items.forEach(item => { itemsHtml += `<li>${item.name} <strong>(x${item.qty})</strong></li>`; });
+
+                const isDone = order.status === "تم التجهيز";
+                const cardClass = isDone ? "order-card done" : "order-card";
+                
+                const btnHtml = isDone 
+                    ? `<button class="status-btn" style="background:#95a5a6;" disabled>جاهز ✓</button>`
+                    : `<button class="status-btn" onclick="completeOrder('${order.orderId}')">تجهيز</button>`;
+
+                const tableText = order.tableNum ? `ترابيزة: ${order.tableNum}` : "ترابيزة: غير محدد";
+
+                ordersGrid.innerHTML += `
+                    <div class="${cardClass}">
+                        <div class="order-header">
+                            <span class="order-id">أوردر رقم: #${order.orderId}</span>
+                            <span class="table-number-tag">${tableText}</span>
+                        </div>
+                        <ul class="items-list">${itemsHtml}</ul>
+                        <div class="order-footer">
+                            <div class="footer-row">
+                                <span class="order-time">الوقت: ${order.time}</span>
+                                <span class="total-price" style="font-weight:bold; color:#2c3e50;">الحساب: ${order.totalPrice} ج.م</span>
+                            </div>
+                            <div class="action-btns">
+                                ${btnHtml}
+                                <button class="delete-btn" onclick="deleteOrder('${order.orderId}')">حساب 💸</button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        });
+    }
+
+    function completeOrder(orderId) { 
+        database.ref('orders/' + orderId).update({ status: "تم التجهيز" }); 
+    }
+
+    function deleteOrder(orderId) {
+        if (confirm("هل أنت متأكد أن الترابيزة دفعت الحساب وتريد مسح الأوردر؟")) {
+            database.ref('orders/' + orderId).remove().catch(error => { alert("حدث خطأ: " + error.message); });
+        }
+    }
+</script>
+</body>
+</html>
