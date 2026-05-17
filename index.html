@@ -10,7 +10,7 @@
         .container { max-width: 450px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         h2 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
         .subtitle { text-align: center; color: #7f8c8d; font-size: 14px; margin-bottom: 15px; }
-        .table-badge { text-align: center; background: #e67e22; color: white; padding: 6px; border-radius: 20px; font-weight: bold; margin-bottom: 25px; font-size: 14px; }
+        .table-badge { text-align: center; background: #e67e22; color: white; padding: 6px; border-radius: 20px; font-weight: bold; margin-bottom: 25px; font-size: 14px; display: flex; justify-content: space-around; }
         .product-card { display: flex; justify-content: space-between; align-items: center; padding: 15px; border: 1px solid #eaeded; border-radius: 12px; margin-bottom: 15px; background: #fff; }
         .product-details { display: flex; align-items: center; gap: 15px; }
         .product-img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid #f0f3f4; }
@@ -45,12 +45,15 @@
     <h2>منيو الطلبات ✨</h2>
     <p class="subtitle">اختر الكمية واضغط على إرسال الطلب</p>
     
-    <div class="table-badge" id="tableDisplay">جاري تحديد رقم الترابيزة...</div>
+    <div class="table-badge" id="infoDisplay">
+        <span id="branchDisplay">🏢 الفرع: جاري التحميل...</span>
+        <span id="tableDisplay">📌 ترابيزة: جاري التحميل...</span>
+    </div>
 
     <div id="menuSection">
         <div class="product-card" data-id="p1" data-name="قهوة إسبريسو" data-price="50">
             <div class="product-details">
-                <img src="http://googleusercontent.com/image_collection/image_retrieval/7942207945039224329_0" alt="قهوة إسبريسو" class="product-img">
+                <img src="https://images.unsplash.com/photo-1510972527409-cac236c51db1?w=150" alt="قهوة إسبريسو" class="product-img">
                 <div class="product-info">
                     <h3>قهوة إسبريسو</h3>
                     <span>50 ج.م</span>
@@ -65,7 +68,7 @@
 
         <div class="product-card" data-id="p2" data-name="كرواسون شيكولاتة" data-price="45">
             <div class="product-details">
-                <img src="http://googleusercontent.com/image_collection/image_retrieval/8485153849441852338_0" alt="كرواسون شيكولاتة" class="product-img">
+                <img src="https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=150" alt="كرواسون شيكولاتة" class="product-img">
                 <div class="product-info">
                     <h3>كرواسون شيكولاتة</h3>
                     <span>45 ج.م</span>
@@ -112,17 +115,11 @@
     const database = firebase.database();
 
     const urlParams = new URLSearchParams(window.location.search);
-    let tableNumber = urlParams.get('table');
+    let branchName = urlParams.get('branch') || "main";        
+    let tableNumber = urlParams.get('table') || "تيك أواي";     
     
-    // 🌟 تكة طلب رقم الترابيزة لو مش موجود في الرابط
-    if (!tableNumber || tableNumber.trim() === "") {
-        tableNumber = prompt("مرحباً بك في الكافيه! فضلاً أدخل رقم ترابيزتك لتتمكن من الطلب:");
-        if (!tableNumber || tableNumber.trim() === "") {
-            tableNumber = "غير محدد";
-        }
-    }
-    
-    document.getElementById('tableDisplay').innerText = "📌 ترابيزة رقم: " + tableNumber;
+    document.getElementById('branchDisplay').innerText = "🏢 الفرع: " + branchName;
+    document.getElementById('tableDisplay').innerText = "📌 ترابيزة: " + tableNumber;
 
     const cart = { p1: 0, p2: 0 };
     let currentOrderNumber = null;
@@ -142,17 +139,6 @@
     }
 
     function submitOrder() {
-        // حماية إضافية: لو لسه مسجلها غير محدد يطلبها تاني قبل الإرسال
-        if (tableNumber === "غير محدد") {
-            tableNumber = prompt("من فضلك أدخل رقم الترابيزة أولاً لإرسال الطلب للبار:");
-            if (!tableNumber || tableNumber.trim() === "") {
-                tableNumber = "غير محدد";
-                alert("لا يمكن إرسال الطلب بدون تحديد رقم الترابيزة!");
-                return;
-            }
-            document.getElementById('tableDisplay').innerText = "📌 ترابيزة رقم: " + tableNumber;
-        }
-
         const orderItems = [];
         let total = 0;
         document.querySelectorAll('.product-card').forEach(card => {
@@ -167,87 +153,8 @@
         });
 
         if (orderItems.length === 0) {
-            alert("عذراً، يجب اختيار منتج واحد على الأخل!");
+            alert("عذراً، يجب اختيار منتج واحد على الأقل!");
             return;
         }
 
-        currentOrderNumber = Math.floor(1000 + Math.random() * 9000);
-        localStorage.setItem('activeOrderId', currentOrderNumber);
-
-        const orderData = {
-            orderId: currentOrderNumber,
-            tableNum: tableNumber,
-            items: orderItems,
-            totalPrice: total,
-            status: "قيد الاستلام",
-            billRequested: false,
-            time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-        };
-
-        database.ref('orders/' + currentOrderNumber).set(orderData)
-        .then(() => {
-            showTrackingScreen(currentOrderNumber);
-            trackOrderStatusLive(currentOrderNumber);
-        })
-        .catch(error => { alert("حدث خطأ، حاول مرة أخرى."); });
-    }
-
-    function showTrackingScreen(orderNum) {
-        document.getElementById('displayOrderNum').innerText = "#" + orderNum;
-        document.getElementById('successCard').style.display = "block";
-        document.getElementById('menuSection').style.display = "none"; 
-        document.getElementById('billBtn').style.display = "block";
-    }
-
-    function askForBill() {
-        if (currentOrderNumber) {
-            database.ref('orders/' + currentOrderNumber).update({ billRequested: true })
-            .then(() => {
-                alert("تم إرسال طلب الحساب للكاشير! 💸");
-                document.getElementById('billBtn').innerText = "جاري إحضار الحساب... ⏳";
-                document.getElementById('billBtn').disabled = true;
-                document.getElementById('billBtn').style.background = "#7f8c8d";
-            });
-        }
-    }
-
-    function trackOrderStatusLive(orderNum) {
-        database.ref('orders/' + orderNum).on('value', (snapshot) => {
-            const orderData = snapshot.val();
-            if (!orderData) {
-                document.getElementById('orderStatusBadge').innerText = "تم إنهاء الحساب بنجاح 👋✨";
-                document.getElementById('orderStatusBadge').className = "status-badge";
-                document.getElementById('orderStatusBadge').style.background = "#95a5a6";
-                document.getElementById('billBtn').style.display = "none";
-                document.getElementById('newOrderBtn').style.display = "block";
-                localStorage.removeItem('activeOrderId');
-                return;
-            }
-
-            const badge = document.getElementById('orderStatusBadge');
-            if (orderData.status === "تم التجهيز") {
-                badge.innerText = "جاهز للتسليم ✓ 🎉";
-                badge.className = "status-badge status-ready";
-            } else {
-                badge.innerText = "قيد الاستلام ⏳";
-                badge.className = "status-badge status-pending";
-            }
-        });
-    }
-
-    function resetForNewOrder() {
-        localStorage.removeItem('activeOrderId');
-        currentOrderNumber = null;
-        cart.p1 = 0; cart.p2 = 0;
-        document.getElementById('qty-p1').innerText = "0";
-        document.getElementById('qty-p2').innerText = "0";
-        document.getElementById('successCard').style.display = "none";
-        document.getElementById('newOrderBtn').style.display = "none";
-        document.getElementById('menuSection').style.display = "block";
-        document.getElementById('billBtn').disabled = false;
-        document.getElementById('billBtn').innerText = "طلب الحساب 💸";
-        document.getElementById('billBtn').style.background = "#e74c3c";
-    }
-</script>
-</body>
-</html>
+        currentOrderNumber = Math.floor(1000 + Math
